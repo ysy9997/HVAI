@@ -1,0 +1,4 @@
+timm==1.0.15
+pandas==2.2.3
+scikit-learn==1.6.1
+processingtools==0.4.3b5
