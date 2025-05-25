@@ -4,7 +4,6 @@ import torch
 import os
 
 
-
 def seed_everything(seed: int = 486) -> None:
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)

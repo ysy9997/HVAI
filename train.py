@@ -27,6 +27,7 @@ utils.seed_everything(cfg.CFG['SEED']) # Seed 고정
 recoder = pt.EnvReco(cfg.CFG['SAVE_PATH'], varify_exist=False)
 recoder.record_gpu()
 
+
 class CustomImageDataset(Dataset):
     def __init__(self, root_dir, transform=None, is_test=False):
         self.root_dir = root_dir
@@ -135,58 +136,58 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
 
 # 학습 및 검증 루프
-# for epoch in range(cfg.CFG['EPOCHS']):
-#     # Train
-#     model.train()
-#     train_loss = 0.0
-#     for images, labels in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
-#         images, labels = images.to(device), labels.to(device)
-#         optimizer.zero_grad()
-#         outputs = model(images)  # logits
-#         loss = criterion(outputs, labels)
-#         loss.backward()
-#         optimizer.step()
-#         train_loss += loss.item()
+for epoch in range(cfg.CFG['EPOCHS']):
+    # Train
+    model.train()
+    train_loss = 0.0
+    for images, labels in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)  # logits
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss.item()
 
-#     avg_train_loss = train_loss / len(train_loader)
+    avg_train_loss = train_loss / len(train_loader)
 
-#     # Validation
-#     model.eval()
-#     val_loss = 0.0
-#     correct = 0
-#     total = 0
-#     all_probs = []
-#     all_labels = []
+    # Validation
+    model.eval()
+    val_loss = 0.0
+    correct = 0
+    total = 0
+    all_probs = []
+    all_labels = []
 
-#     with torch.no_grad():
-#         for images, labels in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
-#             images, labels = images.to(device), labels.to(device)
-#             outputs = model(images)
-#             loss = criterion(outputs, labels)
-#             val_loss += loss.item()
+    with torch.no_grad():
+        for images, labels in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
 
-#             # Accuracy
-#             _, preds = torch.max(outputs, 1)
-#             correct += (preds == labels).sum().item()
-#             total += labels.size(0)
+            # Accuracy
+            _, preds = torch.max(outputs, 1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
 
-#             # LogLoss
-#             probs = F.softmax(outputs, dim=1)
-#             all_probs.extend(probs.cpu().numpy())
-#             all_labels.extend(labels.cpu().numpy())
+            # LogLoss
+            probs = F.softmax(outputs, dim=1)
+            all_probs.extend(probs.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
-#     avg_val_loss = val_loss / len(val_loader)
-#     val_accuracy = 100 * correct / total
-#     val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
+    avg_val_loss = val_loss / len(val_loader)
+    val_accuracy = 100 * correct / total
+    val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
 
-#     # 결과 출력
-#     recoder.print(f"[{epoch + 1}/f{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
+    # 결과 출력
+    recoder.print(f"[{epoch + 1}/{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
 
-#     # Best model 저장
-#     if val_logloss < best_logloss:
-#         best_logloss = val_logloss
-#         torch.save(model.state_dict(), os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
-#         recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
+    # Best model 저장
+    if val_logloss < best_logloss:
+        best_logloss = val_logloss
+        torch.save(model.state_dict(), os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
+        recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
 
 test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
@@ -200,6 +201,7 @@ model.to(device)
 model.eval()
 results = []
 
+pt.sprint(f'start inference on test dataset.', f_rgb=(128, 128, 0), styles=['tilt'])
 with torch.no_grad():
     for images in tqdm(test_loader, total=len(test_loader)):
         images = images.to(device)
@@ -220,7 +222,7 @@ submission = pd.read_csv('./sample_submission.csv', encoding='utf-8-sig')
 
 # 'ID' 컬럼을 제외한 클래스 컬럼 정렬
 class_columns = submission.columns[1:]
-# pred = pred[class_columns]
+pred = pred[class_columns]
 
 submission[class_columns] = pred.values
 submission.to_csv(os.path.join(cfg.CFG['SAVE_PATH'], 'baseline_submission.csv'), index=False, encoding='utf-8-sig')

@@ -1,1 +1,3 @@
-output/*
+output*
+configs/__pycache__/*.pyc
+utils/__pycache__/*.pyc
