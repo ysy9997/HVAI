@@ -17,6 +17,7 @@ import processingtools as pt
 from sklearn.metrics import log_loss
 import configs.default_config as cfg
 import utils
+import models
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -112,21 +113,7 @@ train_loader = DataLoader(train_dataset, batch_size=cfg.CFG['BATCH_SIZE'], shuff
 val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 
-class BaseModel(nn.Module):
-    def __init__(self, num_classes):
-        super(BaseModel, self).__init__()
-        self.backbone = models.resnet18(pretrained=True)  # ResNet18 모델 불러오기
-        self.feature_dim = self.backbone.fc.in_features 
-        self.backbone.fc = nn.Identity()  # feature extractor로만 사용
-        self.head = nn.Linear(self.feature_dim, num_classes)  # 분류기
-
-    def forward(self, x):
-        x = self.backbone(x)       
-        x = self.head(x) 
-        return x
-
-
-model = BaseModel(num_classes=len(class_names)).to(device)
+model = models.BaseModel(num_classes=len(class_names)).to(device)
 best_logloss = float('inf')
 
 # 손실 함수
@@ -134,6 +121,9 @@ criterion = nn.CrossEntropyLoss()
 
 # 옵티마이저
 optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='max', factor=0.5, patience=1, verbose=True, min_lr=1e-6
+)
 
 # 학습 및 검증 루프
 for epoch in range(cfg.CFG['EPOCHS']):
@@ -180,6 +170,8 @@ for epoch in range(cfg.CFG['EPOCHS']):
     val_accuracy = 100 * correct / total
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
 
+    scheduler.step(val_accuracy)
+
     # 결과 출력
     recoder.print(f"[{epoch + 1}/{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
 
@@ -193,7 +185,7 @@ test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=Tr
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 # 저장된 모델 로드
-model = BaseModel(num_classes=len(class_names))
+model = models.BaseModel(num_classes=len(class_names))
 model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device))
 model.to(device)
 
