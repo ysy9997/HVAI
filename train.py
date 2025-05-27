@@ -78,6 +78,7 @@ test_root = '/workspace/dataset/test'
 
 train_transform = transforms.Compose([
     transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
+    transforms.RandomHorizontalFlip(),  # 좌우반전 추가
     transforms.ToTensor(),
     transforms.Normalize(mean=cfg.CFG['MEAN'],
                          std=cfg.CFG['STD'])
@@ -122,7 +123,7 @@ criterion = nn.CrossEntropyLoss()
 # 옵티마이저
 optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, mode='max', factor=0.5, patience=1, verbose=True, min_lr=1e-6
+    optimizer, mode='min', factor=0.5, patience=1, verbose=True, min_lr=1e-6
 )
 
 # 학습 및 검증 루프
@@ -170,7 +171,8 @@ for epoch in range(cfg.CFG['EPOCHS']):
     val_accuracy = 100 * correct / total
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
 
-    scheduler.step(val_accuracy)
+    scheduler.step(val_logloss)
+    current_lr = optimizer.param_groups[0]['lr']
 
     # 결과 출력
     recoder.print(f"[{epoch + 1}/{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
@@ -180,6 +182,8 @@ for epoch in range(cfg.CFG['EPOCHS']):
         best_logloss = val_logloss
         torch.save(model.state_dict(), os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
         recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
+
+    print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}")
 
 test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
