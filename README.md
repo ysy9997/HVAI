@@ -8,3 +8,8 @@
 ```commandline
 sh set_env/start_env.sh
 ```
+
+## set dataset symlink
+```commandline
+bash bash/set_dataset_symlink.sh
+```
