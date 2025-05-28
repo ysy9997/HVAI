@@ -78,7 +78,8 @@ test_root = '/workspace/dataset/test'
 
 train_transform = transforms.Compose([
     transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
-    transforms.RandomHorizontalFlip(),  # 좌우반전 추가
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
     transforms.ToTensor(),
     transforms.Normalize(mean=cfg.CFG['MEAN'],
                          std=cfg.CFG['STD'])
@@ -183,7 +184,7 @@ for epoch in range(cfg.CFG['EPOCHS']):
         torch.save(model.state_dict(), os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
         recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
 
-    print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}")
+    print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}", end='\n\n')
 
 test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
