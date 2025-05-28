@@ -13,3 +13,10 @@ sh set_env/start_env.sh
 ```commandline
 bash bash/set_dataset_symlink.sh
 ```
+
+## set git config
+```commandline
+bash bash/git_HojinPark.sh
+or
+bash bash/git_ysy.sh
+```
