@@ -18,6 +18,7 @@ from sklearn.metrics import log_loss
 import configs.default_config as cfg
 import utils
 import models
+import timm
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,7 +116,9 @@ train_loader = DataLoader(train_dataset, batch_size=cfg.CFG['BATCH_SIZE'], shuff
 val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 
-model = models.BaseModel(num_classes=len(class_names)).to(device)
+model = timm.create_model('convnext_base', pretrained=True)
+model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
+model = model.to(device)
 best_logloss = float('inf')
 
 # 손실 함수
@@ -190,7 +193,8 @@ test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=Tr
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 # 저장된 모델 로드
-model = models.BaseModel(num_classes=len(class_names))
+model = timm.create_model('convnext_base', pretrained=True)
+model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
 model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device))
 model.to(device)
 
