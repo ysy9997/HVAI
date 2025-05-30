@@ -18,6 +18,7 @@ from sklearn.metrics import log_loss
 import configs.default_config as cfg
 import utils
 import models
+import timm
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,7 +79,8 @@ test_root = '/workspace/dataset/test'
 
 train_transform = transforms.Compose([
     transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
-    transforms.RandomHorizontalFlip(),  # 좌우반전 추가
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
     transforms.ToTensor(),
     transforms.Normalize(mean=cfg.CFG['MEAN'],
                          std=cfg.CFG['STD'])
@@ -114,7 +116,9 @@ train_loader = DataLoader(train_dataset, batch_size=cfg.CFG['BATCH_SIZE'], shuff
 val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 
-model = models.BaseModel(num_classes=len(class_names)).to(device)
+model = timm.create_model('convnext_base', pretrained=True)
+model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
+model = model.to(device)
 best_logloss = float('inf')
 
 # 손실 함수
@@ -183,13 +187,14 @@ for epoch in range(cfg.CFG['EPOCHS']):
         torch.save(model.state_dict(), os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
         recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
 
-    print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}")
+    print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}", end='\n\n')
 
 test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
 test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 # 저장된 모델 로드
-model = models.BaseModel(num_classes=len(class_names))
+model = timm.create_model('convnext_base', pretrained=True)
+model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
 model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device))
 model.to(device)
 
