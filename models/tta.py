@@ -15,7 +15,7 @@ class TTAWrapper(torch.nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(self, image: torch.Tensor, method: str = 'sum') -> torch.Tensor:
+    def forward(self, image: torch.Tensor, method: str = 'mean') -> torch.Tensor:
         """
         forward method for TTAWrapper
         :param image: input function
