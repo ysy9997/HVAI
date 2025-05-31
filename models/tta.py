@@ -1,8 +1,8 @@
 import torch
 from torchvision import transforms
-import configs.default_config as cfg
-import warnings
 import torch
+import torchvision.transforms.functional as TF
+import configs.default_config as cfg
 
 
 class TTAWrapper(torch.nn.Module):
@@ -12,51 +12,41 @@ class TTAWrapper(torch.nn.Module):
         :param model: The model to apply TTA to
         """
 
+        super().__init__()
         self.model = model
-        self.device = next(self.model.parameters()).device
 
-        # 기본적으로 항상 적용할 transform (리사이즈, 텐서 변환, 정규화 등)
-        self.default_transform = transforms.Compose([
-            transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=cfg.CFG['MEAN'], std=cfg.CFG['STD']),
-        ])
-
-        # TTA로 적용할 transform만 리스트로 정의
-        self.tta_transforms = [
-            transforms.RandomHorizontalFlip(p=1.0),
-            # transforms.RandomVerticalFlip(p=1.0), # 필요시 추가
-            # transforms.RandomRotation(15),        # 필요시 추가
-        ]
-
-        # 최종적으로 적용할 transform 조합 리스트 (기본, 기본+TTA)
-        self.transforms_list = [self.default_transform]
-        for tta in self.tta_transforms:
-            self.transforms_list.append(
-                transforms.Compose([
-                    tta,
-                    *self.default_transform.transforms  # 기본 transform 뒤에 붙이기
-                ])
-            )
-
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
+    def forward(self, image: torch.Tensor, method: str = 'sum') -> torch.Tensor:
         """
         forward method for TTAWrapper
         :param image: input function
+        :param method: method to combine predictions ('sum', 'mean')
         return input function output
         """
 
         if self.model.training:
-            warnings.warn("TTAWrapper should be used in evaluation mode. Switching to eval mode.")
-        self.model.eval()
+            return self.model(image)
+
+        image_agmented = [image, torch.flip(image.detach().clone(), dims=[-1])]
+        image_agmented.append(self.adjust_brightness(image.detach().clone(), 1.1))
+        image_agmented.append(self.adjust_brightness(image.detach().clone(), 0.9))
 
         preds = []
-        with torch.no_grad():
-            for t in self.transforms_list:
-                img = t(image).unsqueeze(0).to(self.device)
-                output = self.model(img)
-                prob = torch.softmax(output, dim=1)
-                preds.append(prob.cpu())
-        mean_pred = torch.mean(torch.stack(preds), dim=0)
+        for image in image_agmented:
+            preds.append(self.model(image))
+        total_pred = torch.sum(torch.stack(preds), dim=0) if method == 'sum' else torch.mean(torch.stack(preds), dim=0)
 
-        return mean_pred.squeeze(0)
+        return total_pred.squeeze(0)
+    
+    @staticmethod
+    def adjust_brightness(image: torch.Tensor, factor: float) -> torch.Tensor:
+        """
+        Adjust brightness of the image.
+        :param image: input image tensor
+        :param factor: brightness adjustment factor
+        :return: brightness adjusted image tensor
+        """
+        mean = torch.tensor(cfg.CFG['MEAN'], device=image.device).view(-1, 1, 1)
+        std = torch.tensor(cfg.CFG['STD'], device=image.device).view(-1, 1, 1)
+
+        return (image * std + mean * factor - mean) / std
+    

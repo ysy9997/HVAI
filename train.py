@@ -118,7 +118,8 @@ val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuff
 
 model = timm.create_model('convnext_base', pretrained=True)
 model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
-model = model.to(device)
+model = models.TTAWrapper(model)
+model.to(device)
 best_logloss = float('inf')
 
 # 손실 함수
@@ -195,6 +196,7 @@ test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shu
 # 저장된 모델 로드
 model = timm.create_model('convnext_base', pretrained=True)
 model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
+model = models.TTAWrapper(model)
 model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device))
 model.to(device)
 
