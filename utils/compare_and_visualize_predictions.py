@@ -91,28 +91,29 @@ class ExcelImagePredictionGenerator:
         os.makedirs(resized_dir, exist_ok=True)
         
         try:
-            with Image.open(image_path) as img:
-                # Convert to RGB if necessary
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
+            temp_path = image_path.replace('.jpg', '_resized.jpg').replace('.png', '_resized.png')
+            temp_path = resized_dir + '/' + Path(image_path).name
+            if not os.path.exists(temp_path):
+                with Image.open(image_path) as img:
+                    # Convert to RGB if necessary
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Calculate resize ratio maintaining aspect ratio
+                    img_width, img_height = img.size
+                    max_width, max_height = max_size
+                    
+                    ratio = min(max_width / img_width, max_height / img_height)
+                    new_width = int(img_width * ratio)
+                    new_height = int(img_height * ratio)
+                    
+                    # Resize image
+                    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # Save resized image to temporary location
+                    resized_img.save(temp_path, quality=85)
                 
-                # Calculate resize ratio maintaining aspect ratio
-                img_width, img_height = img.size
-                max_width, max_height = max_size
-                
-                ratio = min(max_width / img_width, max_height / img_height)
-                new_width = int(img_width * ratio)
-                new_height = int(img_height * ratio)
-                
-                # Resize image
-                resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                
-                # Save resized image to temporary location
-                temp_path = image_path.replace('.jpg', '_resized.jpg').replace('.png', '_resized.png')
-                temp_path = resized_dir + '/' + Path(image_path).name
-                resized_img.save(temp_path, quality=85)
-                
-                return temp_path
+            return temp_path
                 
         except Exception as e:
             print(f"Error resizing image {image_path}: {e}")
@@ -141,7 +142,7 @@ class ExcelImagePredictionGenerator:
         ws.title = "Model Predictions Comparison"
         
         # Define headers - add all_agree as leftmost column
-        headers = ['all_agree', 'Image Name', 'Image'] + [f'{model} Prediction' for model in self.model_names]
+        headers = ['all_agree', 'Image Name', 'Image'] + [model for model in self.model_names]
         
         # Write headers
         for col_idx, header in enumerate(headers, 1):
@@ -354,11 +355,11 @@ if __name__ == "__main__":
     
     csv_files = [
         f'{BASE}/hvai_submissions/250528_baseline_0.3517.csv',
+        f'{BASE}/hvai_submissions/250531_convnextbase_0.2501763867.csv',
         f'{BASE}/hvai_submissions/250531_v11x_0.2864.csv',
-        f'{BASE}/hvai_submissions/250531_convnextbase_0.2501763867.csv'
+        f'{BASE}/hvai_submissions/geometric_mean_ensemble_predictions.csv',
     ]
-    
-    model_names = ['ResNet18', 'YOLOv11', 'ConvNext']
+    model_names = ['ResNet18', 'ConvNext', 'YOLOv11', 'Ensemble']
     
     image_folder = f'{BASE}/open/test'  # Folder containing TEST_0000.jpg, TEST_0001.jpg, etc.
     
@@ -372,7 +373,7 @@ if __name__ == "__main__":
         image_folder=image_folder,
         output_path=output_path,
         class_names=None,  # Will read from CSV header
-        image_size=(360, 360)  # Adjust image size as needed
+        image_size=(240, 240)  # Adjust image size as needed
     )
     
     print("Excel generation completed!")
