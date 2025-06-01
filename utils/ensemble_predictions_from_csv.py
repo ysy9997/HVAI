@@ -241,7 +241,7 @@ class ModelEnsemble:
         print(f"Saving {ensemble_name} predictions to {output_path}")
         
         # Create DataFrame
-        df_data = {'image_name': self.image_names}
+        df_data = {'ID': self.image_names}
         
         # Add class probabilities
         for i, class_name in enumerate(self.class_names):
@@ -308,7 +308,7 @@ class ModelEnsemble:
             pred_classes = list(ensemble_preds.values())
             if len(set(pred_classes)) > 1:  # Disagreement
                 row_data = {
-                    'image_name': self.image_names[i],
+                    'ID': self.image_names[i],
                     'sample_idx': i
                 }
                 row_data.update(ensemble_preds)
