@@ -5,11 +5,15 @@ import argparse
 import pandas as pd
 from tqdm import tqdm
 from PIL import Image
+from pathlib import Path
  
 import open_clip
 import torch
 from torch.utils.data import Dataset, DataLoader
-from open.class_mapping import class_mapping
+
+import sys
+sys.path.append(Path(__file__).parent)  # for utils/class_mapping
+from class_mapping import class_mapping
  
  
  
@@ -130,10 +134,10 @@ def main(args):
  
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some images.")
-    parser.add_argument("--image_dir", type=str, default="/home/haiqv/workspace/hvai/open/train", help="Cropped image directory")
+    parser.add_argument("--image_dir", type=str, default="/workspace/open/train", help="Cropped image directory")
     # parser.add_argument("--save_dir", type=str, default="/home/haiqv/workspace/hvai/ViT-H-14-laion2B-s32B-b79K", help="Directory to save images with label disagreement")
     # parser.add_argument("--hf-model-card", type=str, default="hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K", help="HuggingFace model cart for OpenCLIP models")
-    parser.add_argument("--hf-model-card", type=str, default="ViT-SO400M-14-SigLIP2", help="HuggingFace model cart for OpenCLIP models")
+    parser.add_argument("--save_dir", type=str, default="ViT-SO400M-14-SigLIP2", help="HuggingFace model cart for OpenCLIP models")
     parser.add_argument("--hf-model-card", type=str, default="hf-hub:timm/ViT-SO400M-14-SigLIP2", help="HuggingFace model cart for OpenCLIP models")
  
     parser.add_argument("--batch_size", type=int, default=512, help="Batch size for processing images")
