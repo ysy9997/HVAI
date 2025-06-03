@@ -94,8 +94,7 @@ def main(args):
     image_paths = sorted(glob.glob(f"{args.image_dir}/**/*.jpg", recursive=True))
     image_dataset = ImageDataset(image_paths, preprocess)
     image_loader = DataLoader(image_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
- 
-   
+
     model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
     total, correct = 0, 0
     string = ""
