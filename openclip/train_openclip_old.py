@@ -227,10 +227,12 @@ def main(args):
 
     targets = [label for _, label in full_dataset.samples]
     class_names = full_dataset.classes
+    print(f"# classes: {len(class_names)}")
+    print(class_names)
 
     # Stratified Split
     train_idx, val_idx = train_test_split(
-        range(len(targets)), test_size=0.2, stratify=targets, random_state=42
+        range(len(targets)), test_size=0.2, stratify=targets, random_state=args.seed
     )
 
     # Subset + transform 각각 적용
@@ -246,7 +248,7 @@ def main(args):
     # Create classifier
     classifier = CarClassifier(
         input_dim=1152, 
-        num_classes=391, 
+        num_classes=len(class_names), 
         classifier_type=args.classifier_type
     ).to(device)
     
@@ -318,7 +320,7 @@ if __name__ == "__main__":
     parser.add_argument("--freeze_clip", action="store_true", help="Freeze CLIP parameters")
     
     # Training arguments
-    parser.add_argument("--epochs", type=int, default=20, help="Number of training epochs")
+    parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-2, help="Learning rate")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
