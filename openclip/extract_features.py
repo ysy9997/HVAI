@@ -65,7 +65,7 @@ def main(args):
     model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
     feature_dict = {}
     for epoch in range(args.epochs):
-        print(f"Epoch [{epoch+1}/{args.epochs}] (TTA {'on' if args.tta else 'off'})")
+        print(f"Epoch [{epoch+1}/{args.epochs}] (TTA {'ON' if args.use_tta else 'OFF'})")
         # loop through images
         for batch, (image, path) in tqdm(enumerate(image_loader), desc="Processing images"):
             image = image.to(device)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=16, help="Number of workers for DataLoader")
     parser.add_argument("--device", type=str, default="0")
 
-    # TTA: augment image multiple times and average them to get robust embeddings
+    # TTA: Test-Time Augmentation to get robust embeddings
     parser.add_argument("--use_tta", action="store_true")
     parser.add_argument("--epochs", type=int, default=20)
 
