@@ -47,7 +47,7 @@ def main(args):
     model, _, preprocess = open_clip.create_model_and_transforms(args.hf_model_card, device=device)
 
     # random transformation : overwrite openclip's validation preprocess
-    if args.use_aug:
+    if args.use_tta:
         preprocess = transforms.Compose([
             transforms.RandomResizedCrop(size=(224, 224), scale=(0.8, 1.2), interpolation=Image.Resampling.BICUBIC),
             transforms.RandomHorizontalFlip(),
@@ -81,7 +81,7 @@ def main(args):
         feature_dict[p] /= args.epochs
     
     # save features
-    save_name = "feature_dict_aug.pt" if args.use_aug else "feature_dict.pt"
+    save_name = "feature_dict_aug.pt" if args.use_tta else "feature_dict.pt"
     torch.save(feature_dict, f"{args.save_dir}/{save_name}")
 
 
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=16, help="Number of workers for DataLoader")
     parser.add_argument("--device", type=str, default="0")
 
-    # augmentation: augment image multiple times to get robust embeddings
-    parser.add_argument("--use_aug", action="store_true")
+    # TTA: augment image multiple times and average them to get robust embeddings
+    parser.add_argument("--use_tta", action="store_true")
     parser.add_argument("--epochs", type=int, default=10)
 
     args = parser.parse_args()
