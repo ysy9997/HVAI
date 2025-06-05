@@ -3,8 +3,8 @@ import sys
 import cv2
 import argparse
 from pathlib import Path
-sys.path.append('/home/haiqv/workspace/hvai') # User-specific path, ensure it's correct
-from open.class_mapping import class_mapping
+sys.path.append("/workspace/HVAI") # User-specific path, ensure it's correct
+from utils.class_mapping import class_mapping
  
  
 # global variables
