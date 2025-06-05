@@ -65,7 +65,7 @@ def main(args):
     model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
     feature_dict = {}
     for epoch in range(args.epochs):
-        print(f"Epoch [{epoch+1}/{args.epochs}]")
+        print(f"Epoch [{epoch+1}/{args.epochs}] (TTA {'on' if args.tta else 'off'})")
         # loop through images
         for batch, (image, path) in tqdm(enumerate(image_loader), desc="Processing images"):
             image = image.to(device)
@@ -81,7 +81,7 @@ def main(args):
         feature_dict[p] /= args.epochs
     
     # save features
-    save_name = "feature_dict_aug.pt" if args.use_tta else "feature_dict.pt"
+    save_name = "feature_dict_tta.pt" if args.use_tta else "feature_dict.pt"
     torch.save(feature_dict, f"{args.save_dir}/{save_name}")
 
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     # TTA: augment image multiple times and average them to get robust embeddings
     parser.add_argument("--use_tta", action="store_true")
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=20)
 
     args = parser.parse_args()
  
