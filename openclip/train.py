@@ -19,8 +19,8 @@ except ImportError:
     MLDecoder = None
  
 import sys
-sys.path.append('/home/haiqv/workspace/hvai') # User-specific path
-from open.class_mapping import class_mapping
+sys.path.append("/workspace/HVAI") # User-specific path
+from utils.class_mapping import class_mapping
  
  
 # global variables
