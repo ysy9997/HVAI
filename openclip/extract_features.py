@@ -9,16 +9,8 @@ from pathlib import Path
  
 import open_clip
 import torch
+from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
-
-import sys
-sys.path.append(Path(__file__).parent)  # for utils/class_mapping
-from class_mapping import class_mapping
- 
- 
- 
-# global variables
-MAKES = list(set(class_mapping.values()))  # list of car makes
  
  
  
@@ -34,12 +26,11 @@ class ImageDataset(Dataset):
         # load path and parse metadata from path
         path = self.image_paths[idx]
         name = path.split('/')[-2]
-        label = MAKES.index(class_mapping[name])
  
         # fetch image & preprocess
         image = Image.open(path).convert("RGB")
         image = self.preprocess(image)
-        return image, label, path
+        return image, path
 
 
 
@@ -54,6 +45,17 @@ def main(args):
  
     # prepare model
     model, _, preprocess = open_clip.create_model_and_transforms(args.hf_model_card, device=device)
+
+    # random transformation : overwrite openclip's validation preprocess
+    if args.use_aug:
+        preprocess = transforms.Compose([
+            transforms.RandomResizedCrop(size=(224, 224), scale=(0.8, 1.2), interpolation=Image.Resampling.BICUBIC),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ])
+    else:
+        args.epochs = 1  # single forward pass is enough if no augmentation is used
  
     # create dataset and dataloader
     image_paths = sorted(glob.glob(f"{args.image_dir}/**/*.jpg", recursive=True))
@@ -62,14 +64,25 @@ def main(args):
    
     model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
     feature_dict = {}
-    with torch.no_grad():
+    for epoch in range(args.epochs):
+        print(f"Epoch [{epoch+1}/{args.epochs}]")
         # loop through images
-        for batch, (image, label, path) in tqdm(enumerate(image_loader), desc="Processing images"):
-            image, label = image.to(device), label.to(device)
-            image_features = model.encode_image(image).cpu()
+        for batch, (image, path) in tqdm(enumerate(image_loader), desc="Processing images"):
+            image = image.to(device)
+            with torch.no_grad():
+                image_features = model.encode_image(image).cpu()
             for p,f in zip(path, image_features):
-                feature_dict[p] = f
-    torch.save(feature_dict, f"{args.save_dir}/feature_dict.pt")
+                if p not in feature_dict.keys():
+                    feature_dict[p] = f
+                else:
+                    feature_dict[p] += f
+    # get average of features
+    for p in feature_dict.keys():
+        feature_dict[p] /= args.epochs
+    
+    # save features
+    save_name = "feature_dict_aug.pt" if args.use_aug else "feature_dict.pt"
+    torch.save(feature_dict, f"{args.save_dir}/{save_name}")
 
 
 
@@ -81,9 +94,14 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir", type=str, default="ViT-SO400M-14-SigLIP2", help="HuggingFace model card for OpenCLIP models")
     parser.add_argument("--hf-model-card", type=str, default="hf-hub:timm/ViT-SO400M-14-SigLIP2", help="HuggingFace model card for OpenCLIP models")
  
-    parser.add_argument("--batch_size", type=int, default=512, help="Batch size for processing images")
-    parser.add_argument("--num_workers", type=int, default=64, help="Number of workers for DataLoader")
+    parser.add_argument("--batch_size", type=int, default=256, help="Batch size for processing images")
+    parser.add_argument("--num_workers", type=int, default=16, help="Number of workers for DataLoader")
     parser.add_argument("--device", type=str, default="0")
+
+    # augmentation: augment image multiple times to get robust embeddings
+    parser.add_argument("--use_aug", action="store_true")
+    parser.add_argument("--epochs", type=int, default=10)
+
     args = parser.parse_args()
  
     main(args)
