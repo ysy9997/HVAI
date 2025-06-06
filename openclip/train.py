@@ -122,7 +122,7 @@ def main(args):
         NC = dataset.NC # Number of classes
         MODELS = dataset.MODELS
         logging.info(f"Number of classes: {NC}")
-        train_idx, valid_idx = train_test_split(range(len(dataset)), test_size=0.5)
+        train_idx, valid_idx = train_test_split(range(len(dataset)), test_size=args.valid_split_ratio)
         trainset = Subset(dataset, train_idx)
         validset = Subset(dataset, valid_idx)
         logging.info(f'#train samples: {len(trainset)}, #valid samples: {len(validset)}')
