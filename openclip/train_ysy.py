@@ -277,7 +277,7 @@ def main(args):
             correct_predictions_valid += (predicted == labels).sum().item()
  
             for pth, lab, prd in zip(paths, labels, predicted):
-                if MODELS is None and args.make is '':
+                if MODELS is None and args.make == '':
                     valid_results.append(f"{pth} {MAKES[lab.item()]} {MAKES[prd.item()]} {int(lab.item()==prd.item())}\n")
                 elif MODELS is None and args.make == 'model':
                     valid_results.append(f"{pth} {list(class_mapping.keys())[lab.item()]} {list(class_mapping.keys())[prd.item()]} {int(lab.item()==prd.item())}\n")
