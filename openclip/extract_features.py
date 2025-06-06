@@ -44,7 +44,7 @@ def main(args):
     device = torch.device(f"cuda:{args.device}")
  
     # prepare model
-    model, _, preprocess = open_clip.create_model_and_transforms(args.hf_model_card, device=device)
+    model, _, preprocess = open_clip.create_model_and_transforms(args.hf_model_card, device=device, cache_dir=args.cache)
 
     # random transformation : overwrite openclip's validation preprocess
     if args.use_tta:
@@ -63,11 +63,26 @@ def main(args):
     image_loader = DataLoader(image_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
    
     model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
-    feature_dict = {}
+    feature_dict = {} if args.resume == "" else torch.load(args.resume)
+    need2varify = True if args.resume != "" else False
+    save_name = "feature_dict_tta.pt" if args.use_tta else "feature_dict.pt"
+
     for epoch in range(args.epochs):
         print(f"Epoch [{epoch+1}/{args.epochs}] (TTA {'ON' if args.use_tta else 'OFF'})")
         # loop through images
-        for batch, (image, path) in tqdm(enumerate(image_loader), desc="Processing images"):
+        for batch, (image, path) in tqdm(enumerate(image_loader), desc="Processing images", total=len(image_loader)):
+            if need2varify:
+                start = False
+                # verify if the image is already processed
+                for p in path:
+                    if p not in feature_dict.keys():
+                        start = True
+                        need2varify = False
+                        break
+                if not start:
+                    print(f"Skipping epoch {epoch+1}, batch {batch+1} as all images are already processed.")
+                    continue
+
             image = image.to(device)
             with torch.no_grad():
                 image_features = model.encode_image(image).cpu()
@@ -76,19 +91,20 @@ def main(args):
                     feature_dict[p] = f
                 else:
                     feature_dict[p] += f
+            torch.save(feature_dict, f"{args.save_dir}/{save_name}")
+
     # get average of features
     for p in feature_dict.keys():
         feature_dict[p] /= args.epochs
     
     # save features
-    save_name = "feature_dict_tta.pt" if args.use_tta else "feature_dict.pt"
     torch.save(feature_dict, f"{args.save_dir}/{save_name}")
 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some images.")
-    parser.add_argument("--image_dir", type=str, default="/workspace/open/train", help="Cropped image directory")
+    parser.add_argument("--image_dir", type=str, default="/workspace/dataset/train", help="Cropped image directory")
     # parser.add_argument("--save_dir", type=str, default="/home/haiqv/workspace/hvai/ViT-H-14-laion2B-s32B-b79K", help="Directory to save images with label disagreement")
     # parser.add_argument("--hf-model-card", type=str, default="hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K", help="HuggingFace model card for OpenCLIP models")
     parser.add_argument("--save_dir", type=str, default="ViT-SO400M-14-SigLIP2", help="HuggingFace model card for OpenCLIP models")
@@ -97,10 +113,13 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size for processing images")
     parser.add_argument("--num_workers", type=int, default=16, help="Number of workers for DataLoader")
     parser.add_argument("--device", type=str, default="0")
+    parser.add_argument("--resume", type=str, default="", help="Resume from a saved feature dictionary")
 
     # TTA: Test-Time Augmentation to get robust embeddings
     parser.add_argument("--use_tta", action="store_true")
     parser.add_argument("--epochs", type=int, default=20)
+
+    parser.add_argument("--cache", type=str, default=None, help="Cache directory for model weights")
 
     args = parser.parse_args()
  

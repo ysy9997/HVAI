@@ -8,3 +8,6 @@ dataset/*
 **/*.pt
 **/*.pth
 **/*.ckpt
+.vscode/launch.json
+openclip/runs/*
+utils/__pycache__/*
