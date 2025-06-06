@@ -14,10 +14,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
  
 # import MLDecoder
 import sys
-sys.path.append("/workspace")
-from ML_Decoder.src_files.ml_decoder.ml_decoder import MLDecoder
- 
 sys.path.append("/workspace/HVAI") # User-specific path
+from ML_Decoder.src_files.ml_decoder.ml_decoder import MLDecoder
 from utils.class_mapping import class_mapping
  
  

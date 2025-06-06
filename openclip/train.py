@@ -14,10 +14,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
  
 # import MLDecoder
 import sys
-sys.path.append("/workspace")
-from ML_Decoder.src_files.ml_decoder.ml_decoder import MLDecoder
- 
 sys.path.append("/workspace/HVAI") # User-specific path
+from ML_Decoder.src_files.ml_decoder.ml_decoder import MLDecoder
 from utils.class_mapping import class_mapping
  
  
@@ -325,7 +323,7 @@ if __name__ == "__main__":
     # Data and Setup
     parser.add_argument('--vector_path', type=str, default='/workspace/HVAI/openclip/ViT-SO400M-14-SigLIP2/feature_dict_tta.pt', help='Path to the .pt file containing the feature dictionary.')
     parser.add_argument('--save_dir', type=str, default='runs/train/mldecoder', help='Directory to save training runs and model checkpoints.')
-    parser.add_argument('--make', type=str, default='', help='If set, the task becomes model classification among the given make.')
+    parser.add_argument('--make', type=str, default='model', help='If set, the task becomes model classification among the given make.')
     parser.add_argument('--classifier', type=str, default='mldecoder', choices=['linear', 'mlp', 'mldecoder'], help='Type of classification head to use.')
     parser.add_argument('--valid_split_ratio', type=float, default=0.2, help='Ratio of dataset to use for validation.')
  
