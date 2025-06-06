@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
- 
+
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -40,9 +40,9 @@ class VectorDataset(Dataset):
         vector_dict = torch.load(vector_path)
        
         # make classification
-        if self.make is None:
+        if self.make is None or self.make == 'model':
             self.MODELS = None
-            self.NC = len(MAKES)
+            self.NC = len(MAKES) if self.make is None else len(set(class_mapping.keys()))
             self.paths, self.vectors = map(list, (vector_dict.keys(), vector_dict.values()))
         # model classification
         else:
@@ -66,6 +66,8 @@ class VectorDataset(Dataset):
        
         if self.make is None:  # make classification
             label = MAKES.index(class_mapping[model])
+        elif self.make == 'model':  # model classification
+            label = list(class_mapping.keys()).index(model)
         else:  # model classification
             label = self.MODELS.index(model)
         return vector, torch.tensor(label, dtype=torch.long), path
@@ -271,8 +273,10 @@ def main(args):
             correct_predictions_valid += (predicted == labels).sum().item()
  
             for pth, lab, prd in zip(paths, labels, predicted):
-                if MODELS is None:
+                if MODELS is None and args.make == '':
                     valid_results.append(f"{pth} {MAKES[lab.item()]} {MAKES[prd.item()]} {int(lab.item()==prd.item())}\n")
+                elif MODELS is None and args.make == 'model':
+                    valid_results.append(f"{pth} {list(class_mapping.keys())[lab.item()]} {list(class_mapping.keys())[prd.item()]} {int(lab.item()==prd.item())}\n")
                 else:
                     valid_results.append(f"{pth} {MODELS[lab.item()]} {MODELS[prd.item()]} {int(lab.item()==prd.item())}\n")
                
@@ -323,7 +327,7 @@ if __name__ == "__main__":
     # Data and Setup
     parser.add_argument('--vector_path', type=str, default='/workspace/HVAI/openclip/ViT-SO400M-14-SigLIP2/feature_dict_tta.pt', help='Path to the .pt file containing the feature dictionary.')
     parser.add_argument('--save_dir', type=str, default='runs/train/mldecoder', help='Directory to save training runs and model checkpoints.')
-    parser.add_argument('--make', type=str, default='model', help='If set, the task becomes model classification among the given make.')
+    parser.add_argument('--make', type=str, default='', help='If set, the task becomes model classification among the given make.')
     parser.add_argument('--classifier', type=str, default='mldecoder', choices=['linear', 'mlp', 'mldecoder'], help='Type of classification head to use.')
     parser.add_argument('--valid_split_ratio', type=float, default=0.2, help='Ratio of dataset to use for validation.')
  
