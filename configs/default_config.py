@@ -1,6 +1,6 @@
 CFG = {
     'IMG_SIZE': 224,
-    'BATCH_SIZE': 64,
+    'BATCH_SIZE': 32,
     'EPOCHS': 15,
     'NUM_WORKERS': 4,
     'LEARNING_RATE': 1e-4,

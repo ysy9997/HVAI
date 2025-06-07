@@ -77,15 +77,17 @@ if __name__ == "__main__":
     train_root = '/workspace/dataset/train'
     test_root = '/workspace/dataset/test'
     resume = ''
+    ony_infer = False
+
 
     train_transform = transforms.Compose([
-        transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=cfg.CFG['MEAN'],
-                            std=cfg.CFG['STD'])
-    ])
+            transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=cfg.CFG['MEAN'],
+                                std=cfg.CFG['STD'])
+        ])
 
     val_transform = transforms.Compose([
         transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
@@ -101,113 +103,112 @@ if __name__ == "__main__":
     targets = [label for _, label in full_dataset.samples]
     class_names = full_dataset.classes
 
-    # Stratified Split
-    train_idx, val_idx = train_test_split(
-        range(len(targets)), test_size=0.2, stratify=targets, random_state=42
-    )
+    if not ony_infer:
+        # Stratified Split
+        train_idx, val_idx = train_test_split(
+            range(len(targets)), test_size=0.2, stratify=targets, random_state=42
+        )
 
-    # Subset + transform 각각 적용
-    train_dataset = Subset(CustomImageDataset(train_root, transform=train_transform), train_idx)
-    val_dataset = Subset(CustomImageDataset(train_root, transform=val_transform), val_idx)
-    print(f'train 이미지 수: {len(train_dataset)}, valid 이미지 수: {len(val_dataset)}')
+        # Subset + transform 각각 적용
+        train_dataset = Subset(CustomImageDataset(train_root, transform=train_transform), train_idx)
+        val_dataset = Subset(CustomImageDataset(train_root, transform=val_transform), val_idx)
+        print(f'train 이미지 수: {len(train_dataset)}, valid 이미지 수: {len(val_dataset)}')
+
+        # DataLoader 정의
+        train_loader = DataLoader(train_dataset, batch_size=cfg.CFG['BATCH_SIZE'], shuffle=True, num_workers=cfg.CFG['NUM_WORKERS'])
+        val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
 
-    # DataLoader 정의
-    train_loader = DataLoader(train_dataset, batch_size=cfg.CFG['BATCH_SIZE'], shuffle=True, num_workers=cfg.CFG['NUM_WORKERS'])
-    val_loader = DataLoader(val_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
+        model = models.ConvNextQuarter(num_classes=len(class_names))
+        model.to(device)
+        best_logloss = float('inf')
 
+        # 손실 함수
+        criterion = nn.CrossEntropyLoss()
 
-    model = timm.create_model('convnext_base', pretrained=True)
-    model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
-    model = model.to(device)
-    best_logloss = float('inf')
+        # 옵티마이저
+        optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=1, verbose=True, min_lr=1e-6
+        )
 
-    # 손실 함수
-    criterion = nn.CrossEntropyLoss()
+        start_epoch = 0
+        if resume:
+            # 모델과 옵티마이저 상태를 로드
+            checkpoint = torch.load(resume, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch'] + 1
+            best_logloss = checkpoint['best_logloss']
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            recoder.print(f"Resuming from epoch {start_epoch}")
 
-    # 옵티마이저
-    optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=1, verbose=True, min_lr=1e-6
-    )
-
-    start_epoch = 0
-    if resume:
-        # 모델과 옵티마이저 상태를 로드
-        checkpoint = torch.load(resume, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-        best_logloss = checkpoint['best_logloss']
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        recoder.print(f"Resuming from epoch {start_epoch}")
-
-    # 학습 및 검증 루프
-    for epoch in range(start_epoch, cfg.CFG['EPOCHS']):
-        # Train
-        model.train()
-        train_loss = 0.0
-        for images, labels in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
-            images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(images)  # logits
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
-
-        avg_train_loss = train_loss / len(train_loader)
-
-        # Validation
-        model.eval()
-        val_loss = 0.0
-        correct = 0
-        total = 0
-        all_probs = []
-        all_labels = []
-
-        with torch.no_grad():
-            for images, labels in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
+        # 학습 및 검증 루프
+        for epoch in range(start_epoch, cfg.CFG['EPOCHS']):
+            # Train
+            model.train()
+            train_loss = 0.0
+            for images, labels in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
                 images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
+                optimizer.zero_grad()
+                outputs = model(images)  # logits
                 loss = criterion(outputs, labels)
-                val_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item()
 
-                # Accuracy
-                _, preds = torch.max(outputs, 1)
-                correct += (preds == labels).sum().item()
-                total += labels.size(0)
+            avg_train_loss = train_loss / len(train_loader)
 
-                # LogLoss
-                probs = F.softmax(outputs, dim=1)
-                all_probs.extend(probs.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
+            # Validation
+            model.eval()
+            val_loss = 0.0
+            correct = 0
+            total = 0
+            all_probs = []
+            all_labels = []
 
-        avg_val_loss = val_loss / len(val_loader)
-        val_accuracy = 100 * correct / total
-        val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
+            with torch.no_grad():
+                for images, labels in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
+                    images, labels = images.to(device), labels.to(device)
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
+                    val_loss += loss.item()
 
-        scheduler.step(val_logloss)
-        current_lr = optimizer.param_groups[0]['lr']
+                    # Accuracy
+                    _, preds = torch.max(outputs, 1)
+                    correct += (preds == labels).sum().item()
+                    total += labels.size(0)
 
-        # 결과 출력
-        recoder.print(f"[{epoch + 1}/{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
+                    # LogLoss
+                    probs = F.softmax(outputs, dim=1)
+                    all_probs.extend(probs.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
 
-        # Best model 저장
-        if val_logloss < best_logloss:
-            best_logloss = val_logloss
-            save_dict = {'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'epoch': epoch, 'best_logloss': best_logloss, 'scheduler_state_dict': scheduler.state_dict(),}
-            torch.save(save_dict, os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
-            recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
+            avg_val_loss = val_loss / len(val_loader)
+            val_accuracy = 100 * correct / total
+            val_logloss = log_loss(all_labels, all_probs, labels=list(range(len(class_names))))
 
-        print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}", end='\n\n')
+            scheduler.step(val_logloss)
+            current_lr = optimizer.param_groups[0]['lr']
+
+            # 결과 출력
+            recoder.print(f"[{epoch + 1}/{cfg.CFG['EPOCHS']}] Train Loss : {avg_train_loss:.4f} || Valid Loss : {avg_val_loss:.4f} | Valid Accuracy : {val_accuracy:.4f}%")
+
+            # Best model 저장
+            if val_logloss < best_logloss:
+                best_logloss = val_logloss
+                save_dict = {'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'epoch': epoch, 'best_logloss': best_logloss, 'scheduler_state_dict': scheduler.state_dict(),}
+                torch.save(save_dict, os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'))
+                recoder.print(f"📦 Best model saved at epoch {epoch+1} (logloss: {val_logloss:.4f})")
+
+            print(torch.softmax(model.raw_weights, dim=0))
+            print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}", end='\n\n')
 
     test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
     test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
     # 저장된 모델 로드
-    model = timm.create_model('convnext_base', pretrained=True)
-    model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
+    model = models.ConvNextQuarter(num_classes=len(class_names))
     model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device)['model_state_dict'])
     model.to(device)
 
@@ -215,6 +216,7 @@ if __name__ == "__main__":
     model.eval()
     results = []
 
+    need2erase = ['718_박스터_2017_2024', 'K5_3세대_하이브리드_2020_2022', 'RAV4_2016_2018', 'RAV4_5세대_2019_2024', '디_올뉴니로_2022_2025']
     pt.sprint(f'start inference on test dataset.', f_rgb=(128, 128, 0), styles=['tilt'])
     with torch.no_grad():
         for images in tqdm(test_loader, total=len(test_loader)):
@@ -228,6 +230,11 @@ if __name__ == "__main__":
                     class_names[i]: prob[i].item()
                     for i in range(len(class_names))
                 }
+                
+                # 필요 없는 클래스 제거
+                for cls in need2erase:
+                    result[cls] = 0.0
+
                 results.append(result)
                 
     pred = pd.DataFrame(results)
