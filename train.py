@@ -214,6 +214,7 @@ if __name__ == "__main__":
     # 추론
     model.eval()
     results = []
+    need2erase = ['718_박스터_2017_2024', 'K5_3세대_하이브리드_2020_2022', 'RAV4_2016_2018', 'RAV4_5세대_2019_2024', '디_올뉴니로_2022_2025']
 
     pt.sprint(f'start inference on test dataset.', f_rgb=(128, 128, 0), styles=['tilt'])
     with torch.no_grad():
@@ -229,6 +230,9 @@ if __name__ == "__main__":
                     for i in range(len(class_names))
                 }
                 results.append(result)
+
+                for key in need2erase:
+                    result[key] = 0.0  # 필요 없는 클래스 확률을 0으로 설정
                 
     pred = pd.DataFrame(results)
 
