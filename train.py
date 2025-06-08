@@ -74,7 +74,7 @@ class CustomImageDataset(Dataset):
             return image, label
 
 if __name__ == "__main__":
-    train_root = '/workspace/dataset/train_new'
+    train_root = '/workspace/dataset/train'
     test_root = '/workspace/dataset/test'
     resume = ''
 
