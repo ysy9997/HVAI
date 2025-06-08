@@ -74,7 +74,7 @@ class CustomImageDataset(Dataset):
             return image, label
 
 if __name__ == "__main__":
-    train_root = '/workspace/dataset/train'
+    train_root = '/workspace/dataset/train_new'
     test_root = '/workspace/dataset/test'
     resume = ''
 
@@ -215,6 +215,9 @@ if __name__ == "__main__":
     model.eval()
     results = []
     need2erase = ['718_박스터_2017_2024', 'K5_3세대_하이브리드_2020_2022', 'RAV4_2016_2018', 'RAV4_5세대_2019_2024', '디_올뉴니로_2022_2025']
+    out_of_distribution_classes = '_cat_or_dog'
+    out_of_distribution_classes_idx = class_names.index(out_of_distribution_classes)
+    class_names = [_ for _ in class_names if _ != out_of_distribution_classes]
 
     pt.sprint(f'start inference on test dataset.', f_rgb=(128, 128, 0), styles=['tilt'])
     with torch.no_grad():
@@ -225,6 +228,10 @@ if __name__ == "__main__":
 
             # 각 배치의 확률을 리스트로 변환
             for prob in probs.cpu():  # prob: (num_classes,)
+                if torch.argmax(prob) == out_of_distribution_classes_idx:
+                    prob = torch.ones_like(prob) / len(class_names)
+                prob = torch.cat([prob[:out_of_distribution_classes_idx], prob[out_of_distribution_classes_idx + 1:]])
+
                 result = {
                     class_names[i]: prob[i].item()
                     for i in range(len(class_names))
