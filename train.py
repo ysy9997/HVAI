@@ -82,6 +82,7 @@ if __name__ == "__main__":
         transforms.Resize((cfg.CFG['IMG_SIZE'], cfg.CFG['IMG_SIZE'])),
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.RandomResizedCrop(cfg.CFG['IMG_SIZE'], scale=(0.8, 1.0), ratio=(1.0, 1.0)),
         transforms.ToTensor(),
         transforms.Normalize(mean=cfg.CFG['MEAN'],
                             std=cfg.CFG['STD'])
