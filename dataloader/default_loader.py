@@ -1,6 +1,9 @@
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset
 import os
 from PIL import Image
+import pickle
+import numpy as np
+import torch
 
 
 class CustomImageDataset(Dataset):
@@ -45,3 +48,58 @@ class CustomImageDataset(Dataset):
             if self.transform:
                 image = self.transform(image)
             return image, label
+
+
+class CalibDataset(CustomImageDataset):
+    def __init__(self, root_dir, transform=None, is_test=False, pickle_path: str = 'validation.pkl', temperature: float = 1.1):
+        super().__init__(root_dir, transform, is_test)
+        with open(pickle_path, 'rb') as f:
+            confidences = pickle.load(f)
+
+        self.confidences = self.temperature(confidences, temperature=temperature)
+
+    def __getitem__(self, idx):
+        if self.is_test:
+            img_path = self.samples[idx][0]
+            image = Image.open(img_path).convert('RGB')
+            if self.transform:
+                image = self.transform(image)
+            return image
+        else:
+            img_path, label = self.samples[idx]
+            image = Image.open(img_path).convert('RGB')
+            if self.transform:
+                image = self.transform(image)
+            return image, label, self.clib_label(label)
+
+    def clib_label(self, label: int) -> np.ndarray:
+        return self.samples[label]
+
+    @staticmethod
+    def temperature(confidences: dict, temperature: float = 1.0) -> dict:
+        for key in confidences.keys():
+            probs = confidences[key]
+            logits = np.log(probs + 1e-12)
+
+            scaled_logits = logits / temperature
+            exp_logits = np.exp(scaled_logits)
+            smoothed_probs = exp_logits / np.sum(exp_logits)
+            confidences[key] = smoothed_probs
+
+        return confidences
+
+
+class LabelSmoothingCrossEntropyLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, pred, target):
+        # pred: (batch_size, num_classes)
+        # target: (batch_size, num_classes)
+
+        # Compute log softmax of the predictions
+        log_prob = F.log_softmax(pred, dim=-1)
+
+        # Compute the negative log-likelihood (cross entropy)
+        loss = -(target * log_prob).sum(dim=-1)
+        return loss.mean()

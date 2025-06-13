@@ -1,14 +1,11 @@
 import os
 import pandas as pd
-
-from PIL import Image
-from tqdm import tqdm 
+from tqdm import tqdm
 
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch.utils.data import Dataset, DataLoader, Subset
-import torchvision.models as models
+from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 from torch import nn, optim
@@ -17,8 +14,8 @@ import processingtools as pt
 from sklearn.metrics import log_loss
 import configs.default_config as cfg
 import utils
-import models
 import timm
+import dataloader.default_loader
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,49 +26,6 @@ utils.seed_everything(cfg.CFG['SEED']) # Seed 고정
 recoder = pt.EnvReco(cfg.CFG['SAVE_PATH'], varify_exist=False)
 recoder.record_gpu()
 
-
-class CustomImageDataset(Dataset):
-    def __init__(self, root_dir, transform=None, is_test=False):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.is_test = is_test
-        self.samples = []
-
-        if is_test:
-            # 테스트셋: 라벨 없이 이미지 경로만 저장
-            for fname in sorted(os.listdir(root_dir)):
-                if fname.lower().endswith(('.jpg')):
-                    img_path = os.path.join(root_dir, fname)
-                    self.samples.append((img_path,))
-        else:
-            # 학습셋: 클래스별 폴더 구조에서 라벨 추출
-            self.classes = sorted(os.listdir(root_dir))
-            self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
-
-            for cls_name in self.classes:
-                cls_folder = os.path.join(root_dir, cls_name)
-                for fname in os.listdir(cls_folder):
-                    if fname.lower().endswith(('.jpg')):
-                        img_path = os.path.join(cls_folder, fname)
-                        label = self.class_to_idx[cls_name]
-                        self.samples.append((img_path, label))
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        if self.is_test:
-            img_path = self.samples[idx][0]
-            image = Image.open(img_path).convert('RGB')
-            if self.transform:
-                image = self.transform(image)
-            return image
-        else:
-            img_path, label = self.samples[idx]
-            image = Image.open(img_path).convert('RGB')
-            if self.transform:
-                image = self.transform(image)
-            return image, label
 
 if __name__ == "__main__":
     train_root = '/workspace/dataset/train'
@@ -96,7 +50,7 @@ if __name__ == "__main__":
     ])
 
     # 전체 데이터셋 로드
-    full_dataset = CustomImageDataset(train_root, transform=None)
+    full_dataset = dataloader.default_loader.CalibDataset(train_root, transform=None)
     print(f"총 이미지 수: {len(full_dataset)}")
 
     targets = [label for _, label in full_dataset.samples]
@@ -108,8 +62,8 @@ if __name__ == "__main__":
     )
 
     # Subset + transform 각각 적용
-    train_dataset = Subset(CustomImageDataset(train_root, transform=train_transform), train_idx)
-    val_dataset = Subset(CustomImageDataset(train_root, transform=val_transform), val_idx)
+    train_dataset = Subset(dataloader.default_loader.CalibDataset(train_root, transform=train_transform), train_idx)
+    val_dataset = Subset(dataloader.default_loader.CalibDataset(train_root, transform=val_transform), val_idx)
     print(f'train 이미지 수: {len(train_dataset)}, valid 이미지 수: {len(val_dataset)}')
 
 
@@ -124,7 +78,7 @@ if __name__ == "__main__":
     best_logloss = float('inf')
 
     # 손실 함수
-    criterion = nn.CrossEntropyLoss()
+    criterion = dataloader.default_loader.LabelSmoothingCrossEntropyLoss()
 
     # 옵티마이저
     optimizer = optim.Adam(model.parameters(), lr=cfg.CFG['LEARNING_RATE'])
@@ -148,11 +102,11 @@ if __name__ == "__main__":
         # Train
         model.train()
         train_loss = 0.0
-        for images, labels in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
+        for images, labels, confidences in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(images)  # logits
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, confidences)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -168,10 +122,10 @@ if __name__ == "__main__":
         all_labels = []
 
         with torch.no_grad():
-            for images, labels in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
+            for images, labels, confidences in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, confidences)
                 val_loss += loss.item()
 
                 # Accuracy
@@ -203,7 +157,7 @@ if __name__ == "__main__":
 
         print(f"{pt.s_text(f'Current LR: {current_lr:.6f}', f_rgb=(100, 10, 80))} | {pt.s_text(f'Best LogLoss: {best_logloss:.4f}', f_rgb=(10, 100, 80))} | {pt.s_text(f'Current LogLoss: {val_logloss:.4f}', f_rgb=(10, 80, 200))}", end='\n\n')
 
-    test_dataset = CustomImageDataset(test_root, transform=val_transform, is_test=True)
+    test_dataset = dataloader.default_loader.CalibDataset(test_root, transform=val_transform, is_test=True)
     test_loader = DataLoader(test_dataset, batch_size=cfg.CFG['BATCH_SIZE'] * 2, shuffle=False, num_workers=cfg.CFG['NUM_WORKERS'])
 
     # 저장된 모델 로드
