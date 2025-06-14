@@ -51,7 +51,7 @@ class CustomImageDataset(Dataset):
 
 
 class CalibDataset(CustomImageDataset):
-    def __init__(self, root_dir, transform=None, is_test=False, pickle_path: str = 'validation.pkl', temperature: float = 1.1):
+    def __init__(self, root_dir, transform=None, is_test=False, pickle_path: str = 'dataloader/valid_conf.pkl', temperature: float = 1.05):
         super().__init__(root_dir, transform, is_test)
         with open(pickle_path, 'rb') as f:
             confidences = pickle.load(f)
@@ -73,10 +73,10 @@ class CalibDataset(CustomImageDataset):
             return image, label, self.clib_label(label)
 
     def clib_label(self, label: int) -> np.ndarray:
-        return self.samples[label]
+        return self.confidences[label]
 
     @staticmethod
-    def temperature(confidences: dict, temperature: float = 1.0) -> dict:
+    def temperature(confidences: dict, temperature) -> dict:
         for key in confidences.keys():
             probs = confidences[key]
             logits = np.log(probs + 1e-12)
@@ -89,7 +89,7 @@ class CalibDataset(CustomImageDataset):
         return confidences
 
 
-class LabelSmoothingCrossEntropyLoss(nn.Module):
+class LabelSmoothingCrossEntropyLoss(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -98,7 +98,7 @@ class LabelSmoothingCrossEntropyLoss(nn.Module):
         # target: (batch_size, num_classes)
 
         # Compute log softmax of the predictions
-        log_prob = F.log_softmax(pred, dim=-1)
+        log_prob = torch.nn.functional.log_softmax(pred, dim=-1)
 
         # Compute the negative log-likelihood (cross entropy)
         loss = -(target * log_prob).sum(dim=-1)

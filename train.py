@@ -103,7 +103,7 @@ if __name__ == "__main__":
         model.train()
         train_loss = 0.0
         for images, labels, confidences in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Training"):
-            images, labels = images.to(device), labels.to(device)
+            images, labels, confidences = images.to(device), labels.to(device), confidences.to(device)
             optimizer.zero_grad()
             outputs = model(images)  # logits
             loss = criterion(outputs, confidences)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             for images, labels, confidences in tqdm(val_loader, desc=f"[Epoch {epoch+1}/{cfg.CFG['EPOCHS']}] Validation"):
-                images, labels = images.to(device), labels.to(device)
+                images, labels, confidences = images.to(device), labels.to(device), confidences.to(device)
                 outputs = model(images)
                 loss = criterion(outputs, confidences)
                 val_loss += loss.item()
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # 저장된 모델 로드
     model = timm.create_model('convnext_base', pretrained=True)
     model.head.fc = nn.Linear(model.head.in_features, len(class_names), bias=True)
-    model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device)['model_state_dict'])
+    model.load_state_dict(torch.load(os.path.join(cfg.CFG['SAVE_PATH'], 'best_model.pth'), map_location=device, weights_only=False)['model_state_dict'])
     model.to(device)
 
     # 추론
